@@ -11,14 +11,13 @@ A RealityKit component and system used to facilitate the background of the
 import RealityKit
 import Metal
 
+/// Dynamic texture that takes a static input texture and transforms it over time
+struct TextureTransformComponent: TransientComponent {
+    private static let computePipeline: MTLComputePipelineState? = makeComputePipeline(named: "textureTransform")
 
-/// Dynamic texture generated using a metal shader, changing over time
-struct DynamicTextureComponent: TransientComponent {
-    private static let computePipeline: MTLComputePipelineState? = makeComputePipeline(named: "colorCirclesKernel")
-    
     private static let commandQueue: MTLCommandQueue? = {
         if let metalDevice, let queue = metalDevice.makeCommandQueue() {
-            queue.label = "Dynamic Texture Background Command Queue"
+            queue.label = "Texture Transform Command Queue"
             return queue
         } else {
             return nil
@@ -26,7 +25,7 @@ struct DynamicTextureComponent: TransientComponent {
     }()
 
     private(set) var lowLevelTexture: LowLevelTexture
-    
+
     /// The size of `lowLevelTexture`.
     @MainActor
     private var textureSize: SIMD2<Int> {
@@ -36,7 +35,9 @@ struct DynamicTextureComponent: TransientComponent {
     
     /// The `Date` at which the splash screen first appeared.
     private let spawnDate: Date
-    
+
+    private let inputTexture: MTLTexture
+
     /// The RealityKit material to use when rendering the background.
     private(set) var material: RealityKit.UnlitMaterial
 
@@ -45,6 +46,7 @@ struct DynamicTextureComponent: TransientComponent {
         case unableToCreateComputePipeline
         case unableToCreateEncoders
         case unableToCreateNoiseTexture
+        case invalidInputTexture
     }
     
     /// Generate a `LowLevelTexture` suitable to be populated for the splash screen background.
@@ -64,12 +66,21 @@ struct DynamicTextureComponent: TransientComponent {
 
     /// Initializes the splash screen background to a texture with the provided resolution.
     @MainActor
-    init(textureSize: SIMD2<Int>) async throws {
+    init(inputTexture: MTLTexture) async throws {
         spawnDate = Date.now
+
+        guard validateMTLTexture(inputTexture) else {
+            throw DynamicTextureGenerationError.invalidInputTexture
+        }
+
+        self.inputTexture = inputTexture
+//
+        let textureSize: SIMD2<Int> = [inputTexture.width, inputTexture.height]
         lowLevelTexture = try Self.generateTexture(width: textureSize.x, height: textureSize.y)
 
         let textureResource = try await TextureResource(from: lowLevelTexture)
         material = UnlitMaterial(texture: textureResource)
+        material.blending = .transparent(opacity: 1.0)
     }
     
     /// Updates the texture size of the splash screen background to the provided resolution.
@@ -89,14 +100,14 @@ struct DynamicTextureComponent: TransientComponent {
               let computeEncoder = commandBuffer.makeComputeCommandEncoder() else {
                   throw DynamicTextureGenerationError.unableToCreateEncoders
         }
-        
+
         commandBuffer.enqueue()
 
         defer {
             computeEncoder.endEncoding()
             commandBuffer.commit()
         }
-        
+
         // Load the Metal compute pipeline corresponding with the kernel in `SplashScreenBackground.metal`.
         guard let computePipeline = Self.computePipeline else {
             throw DynamicTextureGenerationError.unableToCreateComputePipeline
@@ -105,8 +116,9 @@ struct DynamicTextureComponent: TransientComponent {
 
         // Acquire the output texture from `LowLevelTexture`, providing the command buffer.
         let outTexture: MTLTexture = lowLevelTexture.replace(using: commandBuffer)
-        computeEncoder.setTexture(outTexture, index: 0)
-        
+        computeEncoder.setTexture(inputTexture, index: 0)
+        computeEncoder.setTexture(outTexture, index: 1)
+
         // Pass the current time to the compute kernel to facilitate animation.
         var time = Float(spawnDate.distance(to: Date.now))
         computeEncoder.setBytes(&time, length: MemoryLayout<Float>.size, index: 0)
@@ -121,21 +133,21 @@ struct DynamicTextureComponent: TransientComponent {
         let threadGroupCount = MTLSize(width: threadGroupCountPerDimension.x,
                                        height: threadGroupCountPerDimension.y,
                                        depth: 1)
-        
+
         // Dispatch the compute work.
         computeEncoder.dispatchThreadgroups(threadGroupCount, threadsPerThreadgroup: threadGroupSize)
     }
 }
 
 /// A RealityKit system used to update the splash screen background.
-class DynamicTextureSystem: System {
-    static let query = EntityQuery(where: .has(DynamicTextureComponent.self))
+class TextureTransformSystem: System {
+    static let query = EntityQuery(where: .has(TextureTransformComponent.self))
     required init(scene: RealityKit.Scene) { }
 
     func update(context: SceneUpdateContext) {
         for entity in context.entities(matching: Self.query, updatingSystemWhen: .rendering) {
-            let background = entity.components[DynamicTextureComponent.self]!
-            try? background.update()
+            let component = entity.components[TextureTransformComponent.self]!
+            try? component.update()
         }
     }
 }

@@ -28,3 +28,24 @@ extension SIMD3 where Scalar == Float {
     /// Convert a `SIMD3<Float>` to a `MTLPackedFloat3`.
     var packed3: MTLPackedFloat3 { return .init(.init(elements: (x, y, z))) }
 }
+
+func validateMTLTexture(_ texture: MTLTexture?) -> Bool {
+    guard let texture = texture else {
+        return false
+    }
+
+    // Check for valid texture dimensions
+    if texture.width == 0 || texture.height == 0 {
+        return false
+    }
+
+    // Check for valid pixel format (common ones we use)
+    switch texture.pixelFormat {
+    case .r32Float, .r16Float, .rgba8Unorm, .bgra8Unorm:
+        return true
+    default:
+        // If we're using a different format, log it but allow it through
+        print("Using non-standard texture format: \(texture.pixelFormat.rawValue)")
+        return true
+    }
+}
