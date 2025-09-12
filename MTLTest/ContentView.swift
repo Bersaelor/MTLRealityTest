@@ -14,6 +14,7 @@ struct ContentView: View {
     var body: some View {
         RealityView { content in
             RotatingSystem.registerSystem()
+            DynamicTextureSystem.registerSystem()
 
             let rootNode = Entity()
             content.add(rootNode)
@@ -63,6 +64,15 @@ struct ContentView: View {
             texturedMaterial.color = .init(tint: .white, texture: .init(textureResource))
             if let textureQuad = try? SimpleQuad(material: texturedMaterial) {
                 textureQuad.scale = SIMD3(0.2, 0.2, 0.2)
+                entities.append(textureQuad)
+            }
+        }
+
+        //quad with dynamic texture
+        if let dynamicTextureComponent = try? await DynamicTextureComponent(textureSize: [100, 100]) {
+            if let textureQuad = try? SimpleQuad(material: dynamicTextureComponent.material) {
+                textureQuad.scale = SIMD3(0.2, 0.2, 0.2)
+                textureQuad.components.set(dynamicTextureComponent)
                 entities.append(textureQuad)
             }
         }
