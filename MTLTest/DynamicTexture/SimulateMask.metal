@@ -10,7 +10,7 @@ A compute kernel written in Metal Shading Language.
 using namespace metal;
 
 kernel void
-textureTransform(
+simulateMasking(
     texture2d<float, access::sample> inTexture      [[texture(0)]],
     texture2d<float, access::write>  outTexture     [[texture(1)]],
     constant float                  &time           [[buffer(0)]],

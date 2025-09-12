@@ -80,6 +80,7 @@ struct TextureTransformComponent: TransientComponent {
 
         let textureResource = try await TextureResource(from: lowLevelTexture)
         material = UnlitMaterial(texture: textureResource)
+        material.opacityThreshold = 0.0
         material.blending = .transparent(opacity: 1.0)
     }
     

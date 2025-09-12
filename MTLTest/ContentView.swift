@@ -11,6 +11,8 @@ import RealityKit
 struct ContentView: View {
     let rotationSpeed: Float = 0.2
 
+    @State private var viewModel = ViewModel()
+
     var body: some View {
         RealityView { content in
             RotatingSystem.registerSystem()
@@ -23,7 +25,7 @@ struct ContentView: View {
             rootNode.transform.rotation = .init(angle: -0.5, axis: [1, 0, 0])
             rootNode.components.set(RotatingComponent(speed: -rotationSpeed, axis: [0, 0, 1]))
 
-            let testObjects = await createEntities()
+            let testObjects = await viewModel.createEntities()
 
             // Arrange testObjects in a circle around the z-axis
             let radius: Float = 0.5
@@ -40,46 +42,20 @@ struct ContentView: View {
             }
         }
         .realityViewCameraControls(CameraControls.orbit)
-    }
+        .overlay {
+            VStack {
+                HStack {
+                    Text(viewModel.timeString)
 
-    private func createEntities() async -> [Entity] {
-        var entities: [Entity] = []
+                    Spacer()
+                }
 
-        let imageName = "test_img"
-
-        do {
-            // simple quad
-            let quad = try SimpleQuad(material: SimpleMaterial(color: UIColor.green, isMetallic: false))
-            quad.scale = SIMD3(0.2, 0.2, 0.2)
-            quad.position = [-0.3, 0.3, 0]
-            entities.append(quad)
-
-            // quad with texture
-            var texturedMaterial = UnlitMaterial()
-            let textureResource = try await TextureResource(named: imageName)
-            texturedMaterial.color = .init(tint: .white, texture: .init(textureResource))
-            if let textureQuad = try? SimpleQuad(material: texturedMaterial) {
-                textureQuad.scale = SIMD3(0.2, 0.2, 0.2)
-                entities.append(textureQuad)
+                Spacer()
             }
-
-            //quad with dynamic texture
-            if let dynamicTextureComponent = try? await DynamicTextureComponent(textureSize: [100, 100]) {
-                let textureQuad = try SimpleQuad(material: dynamicTextureComponent.material)
-                textureQuad.scale = SIMD3(0.2, 0.2, 0.2)
-                textureQuad.components.set(dynamicTextureComponent)
-                entities.append(textureQuad)
-            }
-
-            //quad with input texture
-            let textureQuad = try await InputTextureEntity.make(with: imageName)
-            entities.append(textureQuad)
-        } catch {
-            print("Failed to create entities due to \(error)")
         }
-
-
-        return entities
+        .onAppear {
+            viewModel.startUpdatingTexture()
+        }
     }
 }
 
