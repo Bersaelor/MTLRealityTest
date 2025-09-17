@@ -23,7 +23,7 @@ struct InputTextureEntity {
         let texture = try await textureLoader.newTexture(name: imageName, scaleFactor: 1, bundle: nil)
 
         print("loading texture sized \(texture.width)x\(texture.height)")
-        guard let textureComponent = try? await TextureTransformComponent(inputTexture: texture) else {
+        guard let textureComponent = try? await TextureWaveComponent(inputTexture: texture) else {
 //        guard let textureComponent = try? await DynamicTextureComponent(textureSize: [texture.width, texture.height]) else {
             throw InputTextureEntityError.failedToLoadTexture
         }

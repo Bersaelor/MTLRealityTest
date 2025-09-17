@@ -24,6 +24,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		E180E84A2E7AE8BA0045ABAC /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		E1D513702E73500B006DC9BC /* MTLTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MTLTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E1D5137D2E73500C006DC9BC /* MTLTestTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MTLTestTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E1D513872E73500C006DC9BC /* MTLTestUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MTLTestUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -79,6 +80,7 @@
 				E1D513802E73500C006DC9BC /* MTLTestTests */,
 				E1D5138A2E73500C006DC9BC /* MTLTestUITests */,
 				E1D513712E73500B006DC9BC /* Products */,
+				E180E84A2E7AE8BA0045ABAC /* README.md */,
 			);
 			sourceTree = "<group>";
 		};

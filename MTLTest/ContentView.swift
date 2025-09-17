@@ -17,7 +17,7 @@ struct ContentView: View {
         RealityView { content in
             RotatingSystem.registerSystem()
             DynamicTextureSystem.registerSystem()
-            TextureTransformSystem.registerSystem()
+            TextureWaveSystem.registerSystem()
 
             let rootNode = Entity()
             content.add(rootNode)

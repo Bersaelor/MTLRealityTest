@@ -1,3 +1,4 @@
+
 /*
 See the LICENSE.txt file for this sample’s licensing information.
 
@@ -12,8 +13,8 @@ import RealityKit
 import Metal
 
 /// Dynamic texture that takes a static input texture and transforms it over time
-struct TextureTransformComponent: TransientComponent {
-    private static let computePipeline: MTLComputePipelineState? = makeComputePipeline(named: "textureTransform")
+struct UpdatableTextureComponent: TransientComponent {
+    private static let computePipeline: MTLComputePipelineState? = makeComputePipeline(named: "plainTextureSampler")
 
     private static let commandQueue: MTLCommandQueue? = {
         if let metalDevice, let queue = metalDevice.makeCommandQueue() {
@@ -36,7 +37,7 @@ struct TextureTransformComponent: TransientComponent {
     /// The `Date` at which the splash screen first appeared.
     private let spawnDate: Date
 
-    private let inputTexture: MTLTexture
+    private var inputTexture: MTLTexture
 
     /// The RealityKit material to use when rendering the background.
     private(set) var material: RealityKit.UnlitMaterial
@@ -86,11 +87,13 @@ struct TextureTransformComponent: TransientComponent {
     
     /// Updates the texture size of the splash screen background to the provided resolution.
     @MainActor
-    mutating func setTextureSize(_ textureSize: SIMD2<Int>) throws {
+    mutating func updateTexture(_ mtlTexture: MTLTexture) throws {
+        let textureSize: SIMD2<Int> = [mtlTexture.width, mtlTexture.height]
         lowLevelTexture = try Self.generateTexture(width: textureSize.x, height: textureSize.y)
         let textureResource = try TextureResource(from: lowLevelTexture)
         material.color = .init(texture: .init(textureResource))
-        try update()
+        self.inputTexture = mtlTexture
+        try self.update()
     }
     
     /// Updates the underlying `LowLevelTexture` for the splash screen.
@@ -124,6 +127,7 @@ struct TextureTransformComponent: TransientComponent {
         var time = Float(spawnDate.distance(to: Date.now))
         computeEncoder.setBytes(&time, length: MemoryLayout<Float>.size, index: 0)
 
+        print("Updating dynamic texture at time \(time), size: \(textureSize)")
         // Compute the thread and group size for threadgroup dispatch.
         let threadGroupSizePerDimension = 16
         let threadGroupCountPerDimension = (textureSize &+ (threadGroupSizePerDimension - 1)) / threadGroupSizePerDimension
@@ -137,18 +141,5 @@ struct TextureTransformComponent: TransientComponent {
 
         // Dispatch the compute work.
         computeEncoder.dispatchThreadgroups(threadGroupCount, threadsPerThreadgroup: threadGroupSize)
-    }
-}
-
-/// A RealityKit system used to update the splash screen background.
-class TextureTransformSystem: System {
-    static let query = EntityQuery(where: .has(TextureTransformComponent.self))
-    required init(scene: RealityKit.Scene) { }
-
-    func update(context: SceneUpdateContext) {
-        for entity in context.entities(matching: Self.query, updatingSystemWhen: .rendering) {
-            let component = entity.components[TextureTransformComponent.self]!
-            try? component.update()
-        }
     }
 }

@@ -17,7 +17,9 @@ class ViewModel {
     let imageName = "test_img"
     private var baseImageTexture: MTLTexture?
     private(set) var timeString: String = ""
-    private(set) var metalTexture: MTLTexture?
+    private var metalTexture: MTLTexture?
+    private var updatableTextureEntity: Entity?
+    private let quadScale = SIMD3<Float>(0.4, 0.4, 0.4)
 
     var cancellables: Set<AnyCancellable> = []
 
@@ -27,6 +29,16 @@ class ViewModel {
             .autoconnect()
             .sink { [weak self] date in
                 self?.metalTexture = try? self?.simulateChangingMTLTexture(time: Float(Date.now.timeIntervalSince(start)))
+                if let texture = self?.metalTexture,
+                   let entity = self?.updatableTextureEntity,
+                   var updatableTextureComponent = entity.components[UpdatableTextureComponent.self],
+                   var modelComponent = entity.components[ModelComponent.self]
+                {
+                    try? updatableTextureComponent.updateTexture(texture)
+                    modelComponent.materials = [updatableTextureComponent.material]
+                    entity.components.set(updatableTextureComponent)
+                    entity.components.set(modelComponent)
+                }
             }
             .store(in: &cancellables)
     }
@@ -37,7 +49,7 @@ class ViewModel {
         do {
             // simple quad
             let quad = try SimpleQuad(material: SimpleMaterial(color: UIColor.green, isMetallic: false))
-            quad.scale = SIMD3(0.2, 0.2, 0.2)
+            quad.scale = quadScale
             quad.position = [-0.3, 0.3, 0]
             entities.append(quad)
 
@@ -46,21 +58,33 @@ class ViewModel {
             let textureResource = try await TextureResource(named: imageName)
             texturedMaterial.color = .init(tint: .white, texture: .init(textureResource))
             if let textureQuad = try? SimpleQuad(material: texturedMaterial) {
-                textureQuad.scale = SIMD3(0.2, 0.2, 0.2)
+                textureQuad.scale = quadScale
                 entities.append(textureQuad)
             }
 
             //quad with dynamic texture
             if let dynamicTextureComponent = try? await DynamicTextureComponent(textureSize: [100, 100]) {
                 let textureQuad = try SimpleQuad(material: dynamicTextureComponent.material)
-                textureQuad.scale = SIMD3(0.2, 0.2, 0.2)
+                textureQuad.scale = quadScale
                 textureQuad.components.set(dynamicTextureComponent)
                 entities.append(textureQuad)
             }
 
+            guard let device = metalDevice else { throw DynamicTextureGenerationError.metalDeviceUnavailable }
             //quad with input texture
-            let textureQuad = try await make(with: imageName)
+            let textureLoader = MTKTextureLoader(device: device)
+            let texture = try await textureLoader.newTexture(name: imageName, scaleFactor: 1, bundle: nil)
+
+            baseImageTexture = texture
+
+            // quad with single input MTLTexture, which is modified at each render step by a MTL shader
+            let textureQuad = try await wavyTextureQuad(basedOn: imageName)
             entities.append(textureQuad)
+
+            // quad where the MTLTexture is changed in size at each render step
+            let updatableTextureQuad = try await updatableTextureQuad(basedOn: imageName)
+            entities.append(updatableTextureQuad)
+            updatableTextureEntity = updatableTextureQuad
         } catch {
             print("Failed to create entities due to \(error)")
         }
@@ -79,21 +103,31 @@ class ViewModel {
         }
     }()
 
-    func make(with imageName: String) async throws -> SimpleQuad {
-        guard let device = metalDevice else { throw DynamicTextureGenerationError.metalDeviceUnavailable }
-        //quad with input texture
-        let textureLoader = MTKTextureLoader(device: device)
-        let texture = try await textureLoader.newTexture(name: imageName, scaleFactor: 1, bundle: nil)
-
-        baseImageTexture = texture
-
-        print("loading texture sized \(texture.width)x\(texture.height)")
-        guard let textureComponent = try? await TextureTransformComponent(inputTexture: texture) else {
+    private func wavyTextureQuad(basedOn imageName: String) async throws -> SimpleQuad {
+        guard let baseImageTexture = baseImageTexture else {
+            throw DynamicTextureGenerationError.invalidInputTexture
+        }
+        guard let textureComponent = try? await TextureWaveComponent(inputTexture: baseImageTexture) else {
             throw DynamicTextureGenerationError.failedToLoadTexture
         }
 
         let textureQuad = try SimpleQuad(material: textureComponent.material)
-        textureQuad.scale = SIMD3(0.2, 0.2, 0.2)
+        textureQuad.scale = quadScale
+        textureQuad.components.set(textureComponent)
+
+        return textureQuad
+    }
+
+    private func updatableTextureQuad(basedOn imageName: String) async throws -> SimpleQuad {
+        guard let baseImageTexture = baseImageTexture else {
+            throw DynamicTextureGenerationError.invalidInputTexture
+        }
+        guard let textureComponent = try? await UpdatableTextureComponent(inputTexture: baseImageTexture) else {
+            throw DynamicTextureGenerationError.failedToLoadTexture
+        }
+
+        let textureQuad = try SimpleQuad(material: textureComponent.material)
+        textureQuad.scale = quadScale
         textureQuad.components.set(textureComponent)
 
         return textureQuad
@@ -122,8 +156,8 @@ class ViewModel {
 
         // adjust size dynamically to simulate what objects changing size in a real worlds camera feed
         let newSize = SIMD2<Int>(
-            Int((0.75 + 0.25 * sin(time) ) * Float(baseImageTexture.width)),
-            Int((0.75 + 0.25 * cos(time) ) * Float(baseImageTexture.height))
+            Int((0.25 + 0.2 * sin(time) ) * Float(baseImageTexture.width)),
+            Int((0.25 + 0.2 * sin(time) ) * Float(baseImageTexture.height))
         )
 
         print("Updated MTL Texture size: \(newSize.x)x\(newSize.y)")
