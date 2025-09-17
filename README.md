@@ -3,6 +3,9 @@
 Sample app for testing Metal and RealityKit features. 
 Should run directly in SwiftUI previews, so we can test changes to Metal shaders without having to restart the simulator.
 
+![Example of SwiftUI Previews](exampleVideo.gif)
+
+
 ### Tests
 
 - [x] basic green, non-metallic quad as baseline
