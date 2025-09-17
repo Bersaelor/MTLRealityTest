@@ -131,7 +131,7 @@ class ViewModel {
         commandBuffer.enqueue()
 
         let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .rgba8Unorm_srgb,
+            pixelFormat: .rgba8Unorm,
             width: newSize.x,
             height: newSize.y,
             mipmapped: false
