@@ -13,9 +13,7 @@ import RealityKit
 import Metal
 
 /// Dynamic texture that takes a static input texture and transforms it over time
-struct UpdatableTextureComponent: TransientComponent {
-    private static let computePipeline: MTLComputePipelineState? = makeComputePipeline(named: "plainTextureSampler")
-
+struct BlitTextureComponent: TransientComponent {
     private static let commandQueue: MTLCommandQueue? = {
         if let metalDevice, let queue = metalDevice.makeCommandQueue() {
             queue.label = "Texture Transform Command Queue"
@@ -101,43 +99,20 @@ struct UpdatableTextureComponent: TransientComponent {
     func update() throws {
         // Set up the Metal command buffer and compute command encoder.
         guard let commandBuffer = Self.commandQueue?.makeCommandBuffer(),
-              let computeEncoder = commandBuffer.makeComputeCommandEncoder() else {
+            let blitEncoder = commandBuffer.makeBlitCommandEncoder() else {
                   throw DynamicTextureGenerationError.unableToCreateEncoders
         }
 
         commandBuffer.enqueue()
 
         defer {
-            computeEncoder.endEncoding()
+            blitEncoder.endEncoding()
             commandBuffer.commit()
         }
 
-        guard let computePipeline = Self.computePipeline else {
-            throw DynamicTextureGenerationError.unableToCreateComputePipeline
-        }
-        computeEncoder.setComputePipelineState(computePipeline)
-
         // Acquire the output texture from `LowLevelTexture`, providing the command buffer.
         let outTexture: MTLTexture = lowLevelTexture.replace(using: commandBuffer)
-        computeEncoder.setTexture(inputTexture, index: 0)
-        computeEncoder.setTexture(outTexture, index: 1)
 
-        // Pass the current time to the compute kernel to facilitate animation.
-        var time = Float(spawnDate.distance(to: Date.now))
-        computeEncoder.setBytes(&time, length: MemoryLayout<Float>.size, index: 0)
-
-        // Compute the thread and group size for threadgroup dispatch.
-        let threadGroupSizePerDimension = 16
-        let threadGroupCountPerDimension = (textureSize &+ (threadGroupSizePerDimension - 1)) / threadGroupSizePerDimension
-
-        let threadGroupSize = MTLSize(width: threadGroupSizePerDimension,
-                                      height: threadGroupSizePerDimension,
-                                      depth: 1)
-        let threadGroupCount = MTLSize(width: threadGroupCountPerDimension.x,
-                                       height: threadGroupCountPerDimension.y,
-                                       depth: 1)
-
-        // Dispatch the compute work.
-        computeEncoder.dispatchThreadgroups(threadGroupCount, threadsPerThreadgroup: threadGroupSize)
+        blitEncoder.copy(from: inputTexture, to: outTexture)
     }
 }

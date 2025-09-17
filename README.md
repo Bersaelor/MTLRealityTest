@@ -13,3 +13,4 @@ Should run directly in SwiftUI previews, so we can test changes to Metal shaders
 - [x] `DynamicTextureComponent` with a dynamic texture, updated at each render step (rainbow-color rings updated with time) 
 - [x] `TextureWaveComponent` that takes an input `MTLTexture` during `init` and then applies a rainbow-wave pattern to the input texture in the shader, the outPutTexture here is a `LowLevelTexture`
 - [x] `UpdatableTextureComponent` where we send a new `MTLTexture` to the component every 200ms and then sample that new texture into a new `LowLevelTexture` using the `PlainTextureSampler`
+- [] `BlitTextureComponent` where we send a new `MTLTexture` to the component every 200ms and then blit that new texture into a new `LowLevelTexture` using a `MTLBlitCommandEncoder`

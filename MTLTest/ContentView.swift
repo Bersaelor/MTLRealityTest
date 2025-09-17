@@ -31,7 +31,8 @@ struct ContentView: View {
             let radius: Float = 0.5
             let center = SIMD3<Float>(0, 0, 0)
             let count = testObjects.count
-            for (i, entity) in testObjects.enumerated() {
+            for (i, tuple) in testObjects.enumerated() {
+                let entity = tuple.0
                 let angle = Float(i) / Float(max(count,1)) * 2 * .pi
                 let x = center.x + radius * cos(angle)
                 let y = center.y + radius * sin(angle)
@@ -39,6 +40,19 @@ struct ContentView: View {
                 entity.position = [x, y, z]
                 entity.components.set(RotatingComponent(speed: rotationSpeed, axis: [0.05, 0, 1.0]))
                 rootNode.addChild(entity)
+
+                // add text label above the entity
+                let textEntity = ModelEntity(mesh: .generateText(
+                    tuple.1,
+                    extrusionDepth: 0.01,
+                    font: .systemFont(ofSize: 0.1),
+                    containerFrame: .zero,
+                    alignment: .center,
+                    lineBreakMode: .byWordWrapping
+                ), materials: [SimpleMaterial(color: .red, isMetallic: false)])
+                textEntity.position = [0, 0, 0.15]
+                textEntity.scale = [0.75, 0.75, 0.75]
+                entity.addChild(textEntity)
             }
         }
         .realityViewCameraControls(CameraControls.orbit)

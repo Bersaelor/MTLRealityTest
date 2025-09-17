@@ -97,7 +97,6 @@ struct DynamicTextureComponent: TransientComponent {
             commandBuffer.commit()
         }
         
-        // Load the Metal compute pipeline corresponding with the kernel in `SplashScreenBackground.metal`.
         guard let computePipeline = Self.computePipeline else {
             throw DynamicTextureGenerationError.unableToCreateComputePipeline
         }

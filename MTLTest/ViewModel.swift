@@ -19,6 +19,7 @@ class ViewModel {
     private(set) var timeString: String = ""
     private var metalTexture: MTLTexture?
     private var updatableTextureEntity: Entity?
+    private var blittableTextureEntity: Entity?
     private let quadScale = SIMD3<Float>(0.4, 0.4, 0.4)
 
     var cancellables: Set<AnyCancellable> = []
@@ -29,6 +30,7 @@ class ViewModel {
             .autoconnect()
             .sink { [weak self] date in
                 self?.metalTexture = try? self?.simulateChangingMTLTexture(time: Float(Date.now.timeIntervalSince(start)))
+
                 if let texture = self?.metalTexture,
                    let entity = self?.updatableTextureEntity,
                    var updatableTextureComponent = entity.components[UpdatableTextureComponent.self],
@@ -39,19 +41,30 @@ class ViewModel {
                     entity.components.set(updatableTextureComponent)
                     entity.components.set(modelComponent)
                 }
+
+                if let texture = self?.metalTexture,
+                   let entity = self?.blittableTextureEntity,
+                   var blitTextureComponent = entity.components[BlitTextureComponent.self],
+                   var modelComponent = entity.components[ModelComponent.self]
+                {
+                    try? blitTextureComponent.updateTexture(texture)
+                    modelComponent.materials = [blitTextureComponent.material]
+                    entity.components.set(blitTextureComponent)
+                    entity.components.set(modelComponent)
+                }
             }
             .store(in: &cancellables)
     }
 
-    func createEntities() async -> [Entity] {
-        var entities: [Entity] = []
+    func createEntities() async -> [(Entity, String)] {
+        var entities: [(Entity, String)] = []
 
         do {
             // simple quad
             let quad = try SimpleQuad(material: SimpleMaterial(color: UIColor.green, isMetallic: false))
             quad.scale = quadScale
             quad.position = [-0.3, 0.3, 0]
-            entities.append(quad)
+            entities.append((quad, "Simple Material"))
 
             // quad with texture
             var texturedMaterial = UnlitMaterial()
@@ -59,7 +72,7 @@ class ViewModel {
             texturedMaterial.color = .init(tint: .white, texture: .init(textureResource))
             if let textureQuad = try? SimpleQuad(material: texturedMaterial) {
                 textureQuad.scale = quadScale
-                entities.append(textureQuad)
+                entities.append((textureQuad, "Textured Quad"))
             }
 
             //quad with dynamic texture
@@ -67,24 +80,28 @@ class ViewModel {
                 let textureQuad = try SimpleQuad(material: dynamicTextureComponent.material)
                 textureQuad.scale = quadScale
                 textureQuad.components.set(dynamicTextureComponent)
-                entities.append(textureQuad)
+                entities.append((textureQuad, "Dynamic Texture"))
             }
 
             guard let device = metalDevice else { throw DynamicTextureGenerationError.metalDeviceUnavailable }
             //quad with input texture
             let textureLoader = MTKTextureLoader(device: device)
             let texture = try await textureLoader.newTexture(name: imageName, scaleFactor: 1, bundle: nil)
-
             baseImageTexture = texture
 
             // quad with single input MTLTexture, which is modified at each render step by a MTL shader
-            let textureQuad = try await wavyTextureQuad(basedOn: imageName)
-            entities.append(textureQuad)
+            let textureQuad = try await wavyTextureQuad()
+            entities.append((textureQuad, "Wavy Texture Quad"))
 
             // quad where the MTLTexture is changed in size at each render step
-            let updatableTextureQuad = try await updatableTextureQuad(basedOn: imageName)
-            entities.append(updatableTextureQuad)
+            let updatableTextureQuad = try await updatableTextureQuad()
+            entities.append((updatableTextureQuad, "Updatable Texture Quad"))
             updatableTextureEntity = updatableTextureQuad
+
+            let blittingQuad = try await blittingQuad()
+            entities.append((blittingQuad, "Blit Texture Quad"))
+            blittableTextureEntity = blittingQuad
+
         } catch {
             print("Failed to create entities due to \(error)")
         }
@@ -103,7 +120,7 @@ class ViewModel {
         }
     }()
 
-    private func wavyTextureQuad(basedOn imageName: String) async throws -> SimpleQuad {
+    private func wavyTextureQuad() async throws -> SimpleQuad {
         guard let baseImageTexture = baseImageTexture else {
             throw DynamicTextureGenerationError.invalidInputTexture
         }
@@ -118,11 +135,27 @@ class ViewModel {
         return textureQuad
     }
 
-    private func updatableTextureQuad(basedOn imageName: String) async throws -> SimpleQuad {
+    private func updatableTextureQuad() async throws -> SimpleQuad {
         guard let baseImageTexture = baseImageTexture else {
             throw DynamicTextureGenerationError.invalidInputTexture
         }
         guard let textureComponent = try? await UpdatableTextureComponent(inputTexture: baseImageTexture) else {
+            throw DynamicTextureGenerationError.failedToLoadTexture
+        }
+
+        let textureQuad = try SimpleQuad(material: textureComponent.material)
+        textureQuad.scale = quadScale
+        textureQuad.components.set(textureComponent)
+
+        return textureQuad
+    }
+
+
+    private func blittingQuad() async throws -> SimpleQuad {
+        guard let baseImageTexture = baseImageTexture else {
+            throw DynamicTextureGenerationError.invalidInputTexture
+        }
+        guard let textureComponent = try? await BlitTextureComponent(inputTexture: baseImageTexture) else {
             throw DynamicTextureGenerationError.failedToLoadTexture
         }
 
