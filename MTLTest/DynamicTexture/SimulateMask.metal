@@ -32,12 +32,12 @@ simulateMasking(
     float dist = length(toPixel) / (min(width, height) * 0.5); // 0 at center, 1 at edge
     // Hue changes with distance, repeats every 1/N units
     const float rings = 3.0;
-    float hue = fract((dist + time) * rings); // 0..1, repeats in rings
+    float factor = fract((dist + time) * rings); // 0..1, repeats in rings
 
     // Convert bounding box coordinates to depth texture coordinates safely
     float2 texCoordInBB = float2(gid) / float2(width, height);
     float3 texValue = inTexture.sample(textureSampler, texCoordInBB).rgb;
-
-    float4 outColor = float4(texValue, hue);
+    texValue.r *= factor;
+    float4 outColor = float4(texValue, 1.0);
     outTexture.write(outColor, gid);
 }
